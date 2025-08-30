@@ -1,4 +1,9 @@
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException, Query, Request
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.responses import JSONResponse
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+import logging
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -8,14 +13,83 @@ from database import get_db, create_tables
 from models import Monster, MonsterType
 from schemas import MonsterCreate, MonsterUpdate, MonsterResponse, MonsterList
 
+
+# Configurar logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
+
 # Criar as tabelas ao iniciar
 create_tables()
+
 
 app = FastAPI(
     title="Monsters API",
     description="API CRUD para cadastro e gerenciamento de monstros",
     version="1.0.0"
 )
+
+# Configuração para JWT
+SECRET_KEY = "supersecretkey"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# Usuário fake para teste
+fake_user_db = {
+    "admin": {
+        "username": "admin",
+        "full_name": "Administrador",
+        "hashed_password": pwd_context.hash("admin123"),
+        "disabled": False,
+    }
+}
+
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
+
+def authenticate_user(username: str, password: str):
+    user = fake_user_db.get(username)
+    if not user:
+        return False
+    if not verify_password(password, user["hashed_password"]):
+        return False
+    return user
+
+def create_access_token(data: dict):
+    from datetime import datetime, timedelta
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Token inválido ou ausente",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    user = fake_user_db.get(username)
+    if user is None:
+        raise credentials_exception
+    return user
+
+# Endpoint para autenticação
+@app.post("/token")
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    user = authenticate_user(form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(status_code=400, detail="Usuário ou senha incorretos")
+    access_token = create_access_token(data={"sub": user["username"]})
+    return {"access_token": access_token, "token_type": "bearer"}
 
 # Configurar CORS para permitir acesso de qualquer origem
 app.add_middleware(
@@ -25,6 +99,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Tratamento global de erros
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logging.error(f"Erro inesperado: {exc}")
+    return JSONResponse(status_code=500, content={"detail": "Erro interno do servidor"})
 
 @app.get("/")
 async def root():
@@ -52,7 +132,7 @@ async def get_monster_types():
     }
 
 @app.post("/monsters", response_model=MonsterResponse)
-async def create_monster(monster: MonsterCreate, db: Session = Depends(get_db)):
+async def create_monster(monster: MonsterCreate, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
     """Criar um novo monstro"""
     db_monster = Monster(**monster.dict())
     db.add(db_monster)
@@ -105,7 +185,8 @@ async def get_monster(monster_id: int, db: Session = Depends(get_db)):
 async def update_monster(
     monster_id: int, 
     monster_update: MonsterUpdate, 
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user)
 ):
     """Atualizar um monstro existente"""
     monster = db.query(Monster).filter(Monster.id == monster_id).first()
@@ -122,7 +203,7 @@ async def update_monster(
     return monster
 
 @app.delete("/monsters/{monster_id}")
-async def delete_monster(monster_id: int, db: Session = Depends(get_db)):
+async def delete_monster(monster_id: int, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
     """Deletar um monstro"""
     monster = db.query(Monster).filter(Monster.id == monster_id).first()
     if monster is None:
@@ -130,6 +211,7 @@ async def delete_monster(monster_id: int, db: Session = Depends(get_db)):
     
     db.delete(monster)
     db.commit()
+    logging.info(f"Monstro '{monster.nome}' deletado com sucesso")
     return {"message": f"Monstro '{monster.nome}' deletado com sucesso"}
 
 @app.get("/monsters/stats/summary")
@@ -157,6 +239,7 @@ async def get_monsters_stats(db: Session = Depends(get_db)):
     }
 
 if __name__ == "__main__":
+    logging.info("Iniciando Monsters API...")
     uvicorn.run(
         "main:app", 
         host="0.0.0.0", 
