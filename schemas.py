@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
-from models import MonsterType
+from home.ubuntu.monsters_api.models import MonsterType
 
 class MonsterBase(BaseModel):
     nome: str = Field(..., min_length=1, max_length=100, description="Nome do monstro")
@@ -35,8 +35,7 @@ class MonsterResponse(MonsterBase):
     created_at: datetime
     updated_at: Optional[datetime]
     
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 class MonsterList(BaseModel):
     monsters: list[MonsterResponse]
