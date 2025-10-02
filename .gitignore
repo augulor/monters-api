@@ -27,6 +27,8 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+
+
 # PyInstaller
 *.manifest
 *.spec
@@ -126,6 +128,30 @@ dmypy.json
 *.db
 *.sqlite
 *.sqlite3
+
+# Banco de dados local
+monsters.db
+
+
+# Arquivos de cobertura
+.coverage
+.coveragerc
+
+# Ambiente virtual (fora do src)
+/.venv/
+
+# Pytest cache (fora do src)
+/.pytest_cache/
+
+# Pytest report
+pytest-report.xml
+
+# Alembic migrations (opcional, ajuste conforme uso)
+alembic/
+alembic.ini
+
+# Log files (reforço)
+*.log
 
 # IDE
 .vscode/

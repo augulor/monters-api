@@ -11,6 +11,7 @@ Uma API REST completa para cadastro e gerenciamento de monstros, construída com
 - **Estatísticas**: Endpoint para estatísticas dos monstros
 - **Documentação automática**: Swagger UI disponível em `/docs`
 - **CORS habilitado**: Permite acesso de qualquer origem
+- **Autenticação JWT**: Proteção de endpoints com JSON Web Tokens
 
 ## Estrutura de Dados
 
@@ -55,15 +56,22 @@ Cada monstro possui os seguintes atributos:
 1. Clone o repositório:
 ```bash
 git clone <url-do-repositorio>
-cd monsters-api
+cd monters-api
 ```
 
-2. Instale as dependências:
+2. Crie um arquivo `.env` na raiz do projeto com as seguintes variáveis:
+```
+SECRET_KEY="sua_chave_secreta_aqui"
+ALGORITHM="HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+```
+
+3. Instale as dependências:
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Execute a aplicação:
+4. Execute a aplicação:
 ```bash
 python main.py
 ```
@@ -76,12 +84,18 @@ Acesse `http://localhost:8000/docs` para ver a documentação interativa (Swagge
 
 ## Endpoints da API
 
+### Autenticação
+
+- `POST /token` - Obtém um token de acesso JWT. Requer `username` e `password` no corpo da requisição (form-data).
+
 ### Informações Gerais
 
 - `GET /` - Informações da API
 - `GET /monster-types` - Lista todos os tipos de monstros disponíveis
 
-### CRUD de Monstros
+### CRUD de Monstros (Protegidos por Autenticação)
+
+Os endpoints abaixo requerem um token JWT válido no cabeçalho `Authorization: Bearer <token>`.
 
 - `POST /monsters` - Criar um novo monstro
 - `GET /monsters` - Listar monstros (com paginação e filtros)
@@ -95,76 +109,26 @@ Acesse `http://localhost:8000/docs` para ver a documentação interativa (Swagge
 
 ## Exemplos de Uso
 
-### Criar um Monstro
+### 1. Obter um Token de Acesso
+
+Use o usuário `admin` e senha `admin123` (apenas para desenvolvimento):
+
+```bash
+curl -X POST "http://localhost:8000/token" \
+     -H "Content-Type: application/x-www-form-urlencoded" \
+     -d "username=admin&password=admin123"
+```
+
+Isso retornará um JSON com o `access_token` e `token_type`.
+
+### 2. Criar um Monstro (com Autenticação)
+
+Substitua `<YOUR_ACCESS_TOKEN>` pelo token obtido no passo anterior.
 
 ```bash
 curl -X POST "http://localhost:8000/monsters" \
      -H "Content-Type: application/json" \
-     -d '{
-       "nome": "Dragão Vermelho",
-       "raca": "Dragão",
-       "peso": 500.5,
-       "altura": 3.2,
-       "tipo": "fogo",
-       "poder_ataque": 850,
-       "poder_defesa": 720,
-       "nivel": 45,
-       "experiencia": 12500,
-       "descricao": "Um poderoso dragão de fogo com escamas vermelhas brilhantes"
-     }'
+     -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>" \
+     -d 
 ```
-
-### Listar Monstros com Filtros
-
-```bash
-# Listar todos os monstros de fogo, página 1, 5 por página
-curl "http://localhost:8000/monsters?tipo=fogo&skip=0&limit=5"
-
-# Buscar monstros por nome
-curl "http://localhost:8000/monsters?nome=dragão"
-```
-
-### Atualizar um Monstro
-
-```bash
-curl -X PUT "http://localhost:8000/monsters/1" \
-     -H "Content-Type: application/json" \
-     -d '{
-       "nivel": 50,
-       "experiencia": 15000
-     }'
-```
-
-## Estrutura do Projeto
-
-```
-monsters-api/
-├── main.py          # Aplicação principal FastAPI
-├── models.py        # Modelos SQLAlchemy
-├── schemas.py       # Schemas Pydantic
-├── database.py      # Configuração do banco de dados
-├── requirements.txt # Dependências
-├── README.md        # Documentação
-└── monsters.db      # Banco de dados SQLite (criado automaticamente)
-```
-
-## Tecnologias Utilizadas
-
-- **FastAPI**: Framework web moderno e rápido para Python
-- **SQLAlchemy**: ORM para Python
-- **Pydantic**: Validação de dados usando type hints
-- **Uvicorn**: Servidor ASGI para aplicações Python
-- **SQLite**: Banco de dados (pode ser facilmente alterado para PostgreSQL, MySQL, etc.)
-
-## Contribuição
-
-1. Faça um fork do projeto
-2. Crie uma branch para sua feature (`git checkout -b feature/nova-feature`)
-3. Commit suas mudanças (`git commit -am 'Adiciona nova feature'`)
-4. Push para a branch (`git push origin feature/nova-feature`)
-5. Abra um Pull Request
-
-## Licença
-
-Este projeto está sob a licença MIT. Veja o arquivo LICENSE para mais detalhes.
 

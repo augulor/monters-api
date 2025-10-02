@@ -1,9 +1,10 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, Enum
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import Column, Integer, String, Float, DateTime, Enum, Boolean
+from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.sql import func
 import enum
 
-Base = declarative_base()
+class Base(DeclarativeBase):
+    __abstract__ = True
 
 class MonsterType(enum.Enum):
     FOGO = "fogo"
@@ -16,6 +17,21 @@ class MonsterType(enum.Enum):
     PSIQUICO = "psiquico"
     SOMBRIO = "sombrio"
     LUZ = "luz"
+
+class User(Base):
+    __tablename__ = "users"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), unique=True, index=True, nullable=False)
+    email = Column(String(100), unique=True, index=True, nullable=False)
+    full_name = Column(String(100), nullable=False)
+    hashed_password = Column(String(255), nullable=False)
+    is_disabled = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    def __repr__(self):
+        return f"<User(username='{self.username}', email='{self.email}')>"
 
 class Monster(Base):
     __tablename__ = "monsters"
@@ -35,5 +51,5 @@ class Monster(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     def __repr__(self):
-        return f"<Monster(nome='{self.nome}', raca='{self.raca}', tipo='{self.tipo.value}')>"
+        return f"<Monster(nome=\\'{self.nome}\\' raca=\\'{self.raca}\\' tipo=\\'{self.tipo.value}\\' )>"
 
